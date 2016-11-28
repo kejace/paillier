@@ -119,6 +119,27 @@ modular_inverse e phi = x `mod` phi
  where
   (_, x, _) = gcde e phi
 
+modInverse :: Integer -> Integer -> Integer
+modInverse 1 _ = 1
+modInverse x y = (n * y + 1) `div` x
+    where n = x - modInverse (y `mod` x) x
+
+modPow :: Integer -> Integer -> Integer -> Integer
+modPow m = pow' (modMul m) (modSquare m)
+    where
+        modMul m a b = (a * b) `mod` m
+        modSquare m a = (a * a) `rem` m
+        pow' _ _ _ 0 = 1
+        pow' m s x n = f x n 1
+            where
+                f x n y
+                    | n == 1 = x `m` y
+                    | r == 0 = f x2 q y
+                    | otherwise = f x2 q (x `m` y)
+                    where
+                        (q, r) = quotRem n 2
+                        x2 = s x
+
 gcde :: Integer -> Integer -> (Integer, Integer, Integer)
 gcde a b | d < 0     = (-d, -x, -y)
          | otherwise = (d, x, y)
