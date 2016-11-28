@@ -12,9 +12,9 @@ import Control.Applicative ((<$>))
 import Control.Monad.Reader
 import Control.Monad.Reader.Class
 
-data PublicKey a = Pub {n :: Integer,  g :: Integer}
+data PublicKey = Pub {n :: Integer,  g :: Integer}
     deriving Show
-data PrivateKey a = Priv {lambda :: Integer, mu :: Integer}
+data PrivateKey = Priv {lambda :: Integer, mu :: Integer}
     deriving Show
 
 data SecInt = Sec Integer
@@ -27,13 +27,13 @@ instance Show SecInt where
    show (Sec i) = "Sec" ++ show i
 
 type RandEnv a = State StdGen a
-type PubKeyEnv a = Reader (PublicKey a)
+type PubKeyEnv = Reader (PublicKey)
 
 runRandom :: RandEnv a -> Int -> a
 runRandom action seed = evalState action $ mkStdGen seed
 
 keys'' :: (MonadState (StdGen) m) =>
-          Int -> m (PublicKey a, PrivateKey b)
+          Int -> m (PublicKey, PrivateKey)
 keys'' sizeBits = do
     g <- get
     let kLen = fromIntegral $ sizeBits `div` 8
@@ -46,7 +46,7 @@ keys'' sizeBits = do
     return $ (Pub n g2, Priv lambda mu)
 
 keys :: RandomGen g => 
-        g -> Int -> (PublicKey a, PrivateKey b, g)
+        g -> Int -> (PublicKey, PrivateKey, g)
 keys g sizeBits = (Pub n g2, Priv lambda mu, g')
     where
         kLen = fromIntegral $ sizeBits `div` 8
@@ -56,7 +56,7 @@ keys g sizeBits = (Pub n g2, Priv lambda mu, g')
         mu = modInverse lambda n
         g2 = n + 1
 
-encrypt'' :: (MonadReader (PublicKey a) m, MonadState (StdGen) m) =>
+encrypt'' :: (MonadReader (PublicKey) m, MonadState (StdGen) m) =>
              Integer -> m SecInt
 encrypt'' i = do
     (Pub n g) <- ask
@@ -69,7 +69,7 @@ encrypt'' i = do
     return c
 
 encrypt' :: RandomGen t =>
-            t -> Integer -> (PubKeyEnv a) (SecInt, t)
+            t -> Integer -> (PubKeyEnv) (SecInt, t)
 encrypt' rg m = do
     (Pub n g) <- ask
     let (r, rg') = large_random_prime rg 32
@@ -78,22 +78,22 @@ encrypt' rg m = do
     let c = Sec $ ((modPow n2 g m) * x) `mod` n2
     return (c, rg')
 
-decrypt' :: SecInt -> PrivateKey t1 -> (PubKeyEnv a) Integer
+decrypt' :: SecInt -> PrivateKey t1 -> (PubKeyEnv) Integer
 decrypt' (Sec c) (Priv lambda mu) = do
     n <- asks n
     let x = modPow (n * n) c lambda - 1
     let p = ((x `div` n) * mu) `mod` n
     return p
 
-pAdd' :: SecInt -> SecInt -> (PubKeyEnv a) SecInt
+pAdd' :: SecInt -> SecInt -> (PubKeyEnv) SecInt
 pAdd' (Sec a) (Sec b) = do
     n <- asks n
     return $ Sec $ (a * b) `mod` (n ^ 2) 
 
-pAddPlain :: SecInt -> Integer -> PublicKey t -> SecInt
+pAddPlain :: SecInt -> Integer -> PublicKey -> SecInt
 pAddPlain (Sec a) b (Pub n g) = Sec $ a * (modPow (n ^ 2) g b)
 
-pMulPlain :: SecInt -> Integer -> PublicKey t -> SecInt
+pMulPlain :: SecInt -> Integer -> PublicKey -> SecInt
 pMulPlain (Sec a) b (Pub n g) = Sec $ modPow (n ^ 2) a b
 
 main :: IO ()
