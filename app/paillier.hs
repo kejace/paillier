@@ -96,31 +96,8 @@ pAddPlain (Sec a) b (Pub n g) = Sec $ a * (modPow (n ^ 2) g b)
 pMulPlain :: SecInt -> Integer -> PublicKey t -> SecInt
 pMulPlain (Sec a) b (Pub n g) = Sec $ modPow (n ^ 2) a b
 
-data MyContext = MyContext
-  { foo :: String
-  , bar :: Int
-  } deriving (Show)
-
-computation :: (MonadReader MyContext m) => Int -> m (Maybe String)
---computation :: Int -> Reader MyContext (Maybe String) 
-computation i = do
-  n <- asks bar
-  x <- asks foo
-  if n > i
-    then return (Just x)
-    else return Nothing
-
-ex1 :: Maybe String
-ex1 = runReader  (computation 0) (MyContext "hello" 1)
-
-ex2 :: Maybe String
-ex2 = runReader  (computation 1) (MyContext "haskell" 0)
-
 main :: IO ()
 main = do
-
-    liftIO $ putStrLn $ show ex1
-    liftIO $ putStrLn $ show ex2
 
     g <- getStdGen
 
@@ -129,6 +106,8 @@ main = do
     let (pub, priv, g') = keys g 256
         m1 = 7
         m2 = 17
+        --env1 = runStateT (encrypt'' m1) g
+        --env2 = runReaderT env1 pub
         -- c0 = runReaderT (runStateT (encrypt'' m1) g) pub2
         (c1, g'') = runReader (encrypt' g' m1) pub
         (c2, _) = runReader (encrypt' g'' m2) pub
