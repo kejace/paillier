@@ -39,6 +39,9 @@ data PrivateKey = Priv {lambda :: Integer, mu :: Integer}
 data SecInt = Sec Integer
 data SecInt' = Sec' Integer PublicKey
 
+class (MonadReader PublicKey m) => m (HES a) where
+  (<>) :: m a -> m a -> m a
+
 instance Show SecInt where
    show (Sec i) = (BC.unpack $ B16.encode $ B.pack $ integer2Bytes $ fromIntegral i)
 
@@ -78,17 +81,12 @@ keysM :: (MonadState (StdGen) m) =>
           Int -> m (PublicKey, PrivateKey)
 keysM sizeBits = do
     g <- get
-    let kLen = fromIntegral $ sizeBits `div` 8
-    let (p, q, g') = generate_pq g kLen
-    let lambda = (p - 1) * (q - 1)
-    let n = p * q
-    let mu = modInverse lambda n
-    let g2 = n + 1
+    let (pub, priv, g') = keys g sizeBits
     put g'
-    return $ (Pub n g2, Priv lambda mu)
+    return $ (pub, priv)
 
 encrypt :: RandomGen t =>
-            t -> Integer -> (PubKeyEnv) (SecInt, t)
+           t -> Integer -> (PubKeyEnv) (SecInt, t)
 encrypt rg m = do
     (Pub n g) <- ask
     let (r, rg') = large_random_prime rg 32
@@ -107,14 +105,7 @@ encryptM i = do
     let x = (modPow n2 r n)
     let c = Sec $ ((modPow n2 g i) * x) `mod` n2
     put rg'
-    return c
-
-decrypt :: SecInt -> PrivateKey -> (PubKeyEnv) Integer
-decrypt (Sec c) (Priv lambda mu) = do
-    n <- asks n
-    let x = modPow (n * n) c lambda - 1
-    let p = ((x `div` n) * mu) `mod` n
-    return p
+    return $ c
 
 decryptM :: (MonadReader PublicKey m) =>
             SecInt -> PrivateKey -> m Integer
@@ -136,6 +127,9 @@ pAddM (Sec a) (Sec b) = do
     return $ Sec $ (a * b) `mod` (n ^ 2)     
 
 -- if we can derive foldl1 from Semigroup
+-- but we could also just treat 0 as (Sec 0) and
+-- have guard on Sec 0 for special addition
+-- this way we'd get a Monoid
 pAddM' :: (MonadReader PublicKey m) =>
            m SecInt -> m SecInt -> m SecInt
 pAddM' a b = do
@@ -183,7 +177,7 @@ mainEnv = do
         (c2, _) = runReader (encrypt g'' m2) pub
 
         r = runReader (pAdd c1 c2) pub :: SecInt
-        r'' = runReader (decrypt r priv) pub :: Integer
+        r'' = runReader (decryptM r priv) pub :: Integer
 
     putStrLn $ (show m1) ++ " becomes " ++ (show c1)
     putStrLn $ (show m2) ++ " becomes " ++ (show c2)
@@ -211,19 +205,21 @@ mainMonad = do
           r'' <- decryptM r priv
           
           liftIO $ putStrLn $ "\nTheir sum is: " ++ (show r) ++ " = " ++ (show r'')
-          
+         
+          let ms' = Prelude.take 999 $ [1..]
+
           (l, l0) <- flip evalStateT g' $ do
-            l <- sequence $ encryptM <$> ms 
+            l <- sequence $ encryptM <$> ms' 
             l0 <- encryptM 0
             return $ (l, l0)
 
           es <- foldl pAddMl (pure l0) l 
           des <- decryptM es priv
-          liftIO $ putStrLn $ (show ms) ++ " becomes " ++ (show l) 
+          liftIO $ putStrLn $ "\ntake " ++ (show $ Prelude.length ms') ++ " [1..]" 
           liftIO $ putStrLn $ "\nThe (foldl) sum is: " ++ (show es) ++ " = " ++ (show des)
-          
+         
           ll <- flip evalStateT g' $ do
-            toRet <- sequence $ encryptM <$> fromList ms
+            toRet <- sequence $ encryptM <$> fromList ms'
             return toRet
        
           es' <- sconcat (pure <$> ll) 
