@@ -2,7 +2,8 @@
             FlexibleInstances
         ,   FlexibleContexts
         ,   UndecidableInstances
-        ,   IncoherentInstances 
+        ,   IncoherentInstances
+        ,   ConstraintKinds
  #-}
 
 import Primes
@@ -36,11 +37,13 @@ data PublicKey = Pub {n :: Integer,  g :: Integer}
 data PrivateKey = Priv {lambda :: Integer, mu :: Integer}
     deriving Show
 
+type PublicEnv m = (MonadReader (PublicKey) m, MonadState (StdGen) m)
+
 data SecInt = Sec Integer
 data SecInt' = Sec' Integer PublicKey
 
-class (MonadReader PublicKey m) => m (HES a) where
-  (<>) :: m a -> m a -> m a
+--class (MonadReader PublicKey m) => m (HES a) where
+---  (<>) :: m a -> m a -> m a
 
 instance Show SecInt where
    show (Sec i) = (BC.unpack $ B16.encode $ B.pack $ integer2Bytes $ fromIntegral i)
@@ -95,7 +98,7 @@ encrypt rg m = do
     let c = Sec $ ((modPow n2 g m) * x) `mod` n2
     return (c, rg')
 
-encryptM :: (MonadReader (PublicKey) m, MonadState (StdGen) m) =>
+encryptM :: (PublicEnv m) =>
              Integer -> m SecInt
 encryptM i = do
     (Pub n g) <- ask
