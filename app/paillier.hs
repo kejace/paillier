@@ -46,7 +46,7 @@ data SecInt' = Sec' Integer PublicKey
 ---  (<>) :: m a -> m a -> m a
 
 instance Show SecInt where
-   show (Sec i) = BC.unpack $ B16.encode $ B.pack $ integer2Bytes $ fromIntegral i
+   show (Sec i) = BC.unpack $ B64.encode $ B.pack $ integer2Bytes $ fromIntegral i
 
 -- decryptShow :: (MonadReader PublicKey m) => 
 --                SecInt -> PrivateKey -> m String
@@ -92,7 +92,7 @@ encrypt :: RandomGen t =>
 encrypt rg m = do (Pub n g) <- ask
                   let (r, rg') = large_random_prime rg 32
                   let n2 = n ^ 2
-                  let x = (modPow n2 r n)
+                  let x = modPow n2 r n
                   let c = Sec $ (modPow n2 g m * x) `mod` n2
                   return (c, rg')
 
@@ -102,7 +102,7 @@ encryptM i = do (Pub n g) <- ask
                 rg <- get
                 let (r, rg') = large_random_prime rg 32
                 let n2 = n ^ 2
-                let x = (modPow n2 r n)
+                let x = modPow n2 r n
                 let c = Sec $ (modPow n2 g i * x) `mod` n2
                 put rg'
                 return c
